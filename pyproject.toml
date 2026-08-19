@@ -1,0 +1,26 @@
+[project]
+name = "enterprise-ai-platform"
+version = "0.1.0"
+description = "Enterprise AI Knowledge & Workflow Platform (Django + DRF + PostgreSQL, RAG layer planned)"
+authors = [
+    {name = "Shreshtha Ojha",email = "ojhashreshtha@gmail.com"}
+]
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "django (>=6.1,<7.0)",
+    "djangorestframework (>=3.18.0,<4.0.0)",
+    "psycopg[binary] (>=3.3.4,<4.0.0)",
+    "python-dotenv (>=1.2.3,<2.0.0)",
+    "fastembed (>=0.8.0,<0.9.0)",
+    "faiss-cpu (>=1.15.0,<2.0.0)",
+    "anthropic (>=0.122.0,<0.123.0)",
+    "pydantic (>=2.13.4,<3.0.0)",
+    "numpy (>=2.5.2,<3.0.0)"
+]
+
+[tool.poetry]
+package-mode = false
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
