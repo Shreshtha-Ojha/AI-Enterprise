@@ -1,0 +1,168 @@
+:root {
+  --text: #2b2d33;
+  --text-muted: #6b7280;
+  --bg: #f7f7f8;
+  --panel-bg: #ffffff;
+  --border: #dfe1e6;
+  --accent: #3454d1;
+  --error: #b3261e;
+  --error-bg: #fdecea;
+  --success: #1a7f37;
+  --success-bg: #e9f7ec;
+
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+#root {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+.app-header h1 {
+  font-size: 26px;
+  margin: 0 0 24px;
+}
+
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.panel h2 {
+  font-size: 18px;
+  margin: 0 0 16px;
+}
+
+.panel h3 {
+  font-size: 15px;
+  margin: 16px 0 8px;
+  color: var(--text-muted);
+}
+
+.upload-form,
+.query-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+textarea {
+  width: 100%;
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: vertical;
+}
+
+button {
+  font: inherit;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+button:disabled {
+  background: var(--border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.message {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.message-error {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.message-success {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.document-list,
+.source-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.document-list-item,
+.source-list-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.document-name {
+  font-weight: 600;
+}
+
+.document-meta {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.status-badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+.status-ready {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.status-failed {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.answer-panel {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.answer-text {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
