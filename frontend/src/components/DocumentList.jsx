@@ -22,6 +22,7 @@ function DocumentList({ documents, loading, error }) {
           <span className="document-name">{document.filename}</span>
           <span className={`status-badge status-${document.status}`}>{document.status}</span>
           <span className="document-meta">
+            {document.page_count != null && `${document.page_count} pages · `}
             {document.chunk_count} chunks · {formatUploadedAt(document.uploaded_at)}
           </span>
           {document.status === 'failed' && document.error_message && (

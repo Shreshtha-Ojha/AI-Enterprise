@@ -2,10 +2,10 @@
 
 **Q: What's actually in PostgreSQL, and what isn't?**
 Only the `Document` model — `id` (UUID), `filename`, `uploaded_at`,
-`char_count`, `chunk_count`, `status`, `error_message`. No chunk text, no
-embeddings. That data lives entirely in the FAISS index and its JSON
-metadata sidecar on disk. See the `Document` model's own docstring in
-`rag/models.py` for why this split was deliberate.
+`char_count`, `chunk_count`, `page_count` (nullable, PDF only), `status`,
+`error_message`. No chunk text, no embeddings. That data lives entirely in
+the FAISS index and its JSON metadata sidecar on disk. See the `Document`
+model's own docstring in `rag/models.py` for why this split was deliberate.
 
 **Q: Why not store chunk text/embeddings in Postgres too?**
 This phase's scope used FAISS as the vector store (see

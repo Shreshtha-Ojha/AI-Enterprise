@@ -148,16 +148,6 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 
-# Email
-# https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
-
-MAILERS = {
-    "default": {
-        "BACKEND": "django.core.mail.backends.console.EmailBackend",
-    },
-}
-
-
 # RAG pipeline
 # Local, file-based FAISS index + metadata store (see docs/learning/vector-search.md
 # for why this is acceptable for the MVP and what changes in production).

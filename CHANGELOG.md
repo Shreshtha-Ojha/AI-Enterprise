@@ -4,6 +4,95 @@ Each entry explains what changed, why, what problem it solved, what
 alternatives were considered, and what was learned — not a bare commit
 list. Dated by when the work was done.
 
+## 2026-08-20 — Final audit and MVP freeze
+
+**What changed:** A full-repository audit pass (code, security, API
+contract, RAG pipeline, documentation) with no new product functionality —
+this closes out active development on the MVP. Concrete changes:
+
+- **Removed dead config.** `config/settings.py` had a `MAILERS = {...}`
+  dictionary left over from bootstrapping. `MAILERS` is not a real Django
+  setting (Django's actual setting is `EMAIL_BACKEND`); nothing in the
+  codebase referenced it, and the project sends no email. It was inert,
+  misleading dead code — removed rather than fixed, since nothing needs it.
+- **Surfaced `page_count` in the frontend.** The API has returned
+  `page_count` for PDF uploads since the previous pass, but `DocumentList.jsx`
+  never displayed it — a real frontend/backend inconsistency where useful
+  data the backend computed was invisible in the UI. One-line fix.
+- **Fixed two stale documentation claims.** `docs/interview/database-questions.md`
+  listed `Document`'s fields but was missing `page_count` (added in the
+  prior PDF-support pass and never back-filled here); `docs/interview/backend-questions.md`'s
+  API-design answer described `400`s only as "validation/unsupported-format,"
+  not mentioning the `ExtractionError` path (corrupt/empty PDF) added in the
+  same prior pass. Both corrected to match the actual current code.
+- **Added one real-behavior test.** `get_extractor()` lowercases the file
+  extension before matching (`rag/services/extractors.py`), so `REPORT.TXT`
+  and `Report.Pdf` resolve correctly — this was true of the code but had no
+  test asserting it. One test added
+  (`test_extension_matching_is_case_insensitive`), not to inflate the count
+  but because it's a real, previously-unverified code path.
+- **README polish:** corrected the stale test count (67 → 68), added
+  `npm run build` / `npm run lint` and `manage.py check` to the setup
+  instructions so the README's own verification commands match what this
+  audit actually ran.
+
+**Security audit (no fixes needed — verified only):**
+
+- `.env` is gitignored and not tracked; `.env.example` contains only
+  placeholder values (`change-me`, `sk-ant-your-key-here`); `git grep` for
+  API-key-shaped strings, AWS keys, and PEM private key headers across all
+  tracked files (excluding lockfiles) found nothing.
+- `DJANGO_SECRET_KEY` and all `DB_*` credentials are `required=True`
+  environment reads (`config/settings.py`) — no hardcoded fallback.
+- `CORS_ALLOWED_ORIGINS` is an explicit allowlist (no wildcard, no
+  `CORS_ALLOW_ALL_ORIGINS`); the frontend sends no credentials, matching
+  the comment already in `settings.py`.
+- **Filename handling was specifically probed, not assumed safe.** Tested
+  uploading a file with a 300-character filename and a filename containing
+  path separators, directly against a live endpoint. Confirmed Django's own
+  `UploadedFile.name` setter (`django/core/files/uploadedfile.py`) already
+  calls `os.path.basename()` (blocking path traversal via filename) and
+  truncates to 255 characters preserving the extension (matching
+  `Document.filename`'s `max_length=255`) *before* the name ever reaches
+  application code — so this was already safe by virtue of using Django's
+  `UploadedFile`, not something this project's code had to implement
+  itself. Verified by direct reproduction, not by reading the framework
+  source and assuming.
+- LLM errors: confirmed (already true from the prior pass, re-verified by
+  reading `rag/services/llm.py`) that `AnthropicLLMProvider` never returns
+  the raw SDK exception — only a fixed, generic message — while the real
+  exception is logged server-side.
+- Uploaded file bytes are never written to disk under a user-controlled
+  path — the whole pipeline operates on in-memory `bytes` end to end; there
+  is no filesystem write of upload content anywhere to escape.
+
+**What was NOT changed:** Architecture, dependencies (beyond what the PDF
+pass already added), API contract, chunking strategy, or any of the
+already-honest documented limitations (no OCR, synchronous ingestion,
+single-process FAISS, no auth/multi-tenancy/rate limiting, no document
+deletion, FAISS/PostgreSQL consistency gap). This pass found a small,
+genuine polish backlog, not a design problem — the architecture built
+across the prior two passes held up under a full adversarial-ish audit
+without needing structural changes.
+
+**Test results:** 68 tests (67 → 68, the one case-insensitivity test
+above), all passing. `manage.py check` clean. `manage.py makemigrations --check`
+clean (no missing migrations). Frontend `npm run build` succeeds; `npm run lint`
+produces one pre-existing warning (`App.jsx`'s `set-state-in-effect` rule on
+the standard fetch-on-mount `useEffect` pattern) — reviewed and left as-is,
+since it's React's own documented pattern for synchronizing with an
+external system (data fetching), not a functional bug, and rewriting
+working code to satisfy an overzealous lint rule isn't in scope for this
+freeze.
+
+**What was learned:** Verifying a security assumption by actually
+reproducing the attack (a long/path-like filename against a live endpoint)
+rather than just reading the code was worth doing — it would have been easy
+to assume "Django models truncate silently" (false — Postgres raises
+`DataError` on direct ORM use with an overlong string) and miss that the
+real protection is one layer up, in `UploadedFile` itself, before that
+code path is ever reached through the actual upload endpoint.
+
 ## 2026-08-20 — Add PDF ingestion support
 
 **What changed:** Extended the ingestion layer to support `.pdf` uploads

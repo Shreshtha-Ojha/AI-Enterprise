@@ -14,11 +14,12 @@ Three endpoints: `POST /api/documents/upload` (multipart, runs the full
 ingest pipeline synchronously, returns the created `Document`),
 `GET /api/documents` (list, newest first), `POST /api/query`
 (`{"question"}` → `{"answer", "sources"}`). Status codes are deliberately
-specific: `400` for validation/unsupported-format, `201` for a successful
-upload (even if the resulting document status is `failed` — that's a valid
-outcome, not a server error), `502` for an LLM failure, `503` for missing
-API key configuration. See [data-flow.md](../architecture/data-flow.md)'s
-error-path table.
+specific: `400` for validation failures, an unsupported file extension, or
+a file whose extension is supported but whose content doesn't parse (e.g.
+a corrupt PDF); `201` for a successful upload (even if the resulting
+document status is `failed` — that's a valid outcome, not a server error);
+`502` for an LLM failure; `503` for missing API key configuration. See
+[data-flow.md](../architecture/data-flow.md)'s error-path table.
 
 **Q: Why does a failed document extraction return `201`, not an error
 status?**

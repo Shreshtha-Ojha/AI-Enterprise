@@ -55,7 +55,7 @@ each technology was chosen.
 - Clean failure handling throughout: unsupported file types, corrupt/empty
   PDFs, empty documents, and LLM/provider failures all return clear, typed
   responses — never a raw stack trace
-- 67 automated tests covering chunking, extraction (`.txt` and `.pdf`),
+- 68 automated tests covering chunking, extraction (`.txt` and `.pdf`),
   embedding + FAISS retrieval (with the real model), grounding validation,
   and the full API surface
 
@@ -94,9 +94,10 @@ poetry run python manage.py migrate
 poetry run python manage.py runserver
 ```
 
-Run the test suite:
+Run checks and the test suite:
 
 ```bash
+poetry run python manage.py check
 poetry run python manage.py test rag
 ```
 
@@ -107,6 +108,13 @@ cd frontend
 npm install
 cp .env.example .env      # VITE_API_BASE_URL, defaults to http://localhost:8000
 npm run dev
+```
+
+Build and lint:
+
+```bash
+npm run build
+npm run lint
 ```
 
 ### Environment Variables

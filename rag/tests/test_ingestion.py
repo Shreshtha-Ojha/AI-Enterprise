@@ -24,6 +24,10 @@ class ExtractorTests(SimpleTestCase):
         with self.assertRaises(UnsupportedFileTypeError):
             get_extractor("README")
 
+    def test_extension_matching_is_case_insensitive(self):
+        self.assertIsInstance(get_extractor("REPORT.TXT"), type(get_extractor("report.txt")))
+        self.assertIsInstance(get_extractor("Report.Pdf"), type(get_extractor("report.pdf")))
+
 
 class PdfExtractorTests(SimpleTestCase):
     def test_extracts_text_from_a_valid_pdf(self):
