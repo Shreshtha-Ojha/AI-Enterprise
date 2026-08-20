@@ -1,6 +1,9 @@
 # ADR-0006: Support one document format (.txt) for the initial MVP
 
-**Status:** Accepted
+**Status:** Accepted — the "one format" scope was superseded by
+[ADR-0007](./0007-pdf-extraction.md), which added `.pdf`. The reasoning
+below (why `.txt`-only was the right place to *start*, and the extension
+point it deliberately left open) still stands.
 
 ## Context
 

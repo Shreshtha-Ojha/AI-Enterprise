@@ -10,7 +10,8 @@ rag/
 │                       its exceptions to status codes
 ├── urls.py             /api/documents/upload, /api/documents, /api/query
 └── services/
-    ├── extractors.py   file bytes -> raw text (one class per format)
+    ├── extractors.py   file bytes -> raw text + metadata (one class per
+    │                     format: TxtExtractor, PdfExtractor)
     ├── ingestion.py    raw text -> cleaned IngestedDocument
     ├── chunking.py     text -> list[Chunk] (pure function, no I/O)
     ├── embedding.py    Chunk[]/str -> np.ndarray (the only FastEmbed import)

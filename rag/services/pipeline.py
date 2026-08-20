@@ -30,12 +30,15 @@ def run_ingestion_pipeline(file_bytes: bytes, filename: str) -> Document:
     ingested = ingestion.ingest(file_bytes, filename)
     chunks = chunking.chunk(ingested.document_id, ingested.filename, ingested.text)
 
+    page_count = ingested.metadata.get("page_count")
+
     if not chunks:
         return Document.objects.create(
             id=ingested.document_id,
             filename=ingested.filename,
             char_count=ingested.char_count,
             chunk_count=0,
+            page_count=page_count,
             status=Document.Status.FAILED,
             error_message="Document contained no extractable text after cleaning.",
         )
@@ -48,6 +51,7 @@ def run_ingestion_pipeline(file_bytes: bytes, filename: str) -> Document:
         filename=ingested.filename,
         char_count=ingested.char_count,
         chunk_count=len(chunks),
+        page_count=page_count,
         status=Document.Status.READY,
     )
 

@@ -47,10 +47,16 @@ function DocumentUpload({ onUploadSuccess }) {
 
   return (
     <form className="upload-form" onSubmit={handleSubmit}>
-      <input type="file" onChange={handleFileChange} disabled={uploading} />
+      <input
+        type="file"
+        accept=".txt,.pdf,text/plain,application/pdf"
+        onChange={handleFileChange}
+        disabled={uploading}
+      />
       <button type="submit" disabled={uploading}>
         {uploading ? 'Uploading…' : 'Upload'}
       </button>
+      <p className="hint">Supported formats: .txt, .pdf</p>
 
       {error && <p className="message message-error">{error}</p>}
       {successMessage && <p className="message message-success">{successMessage}</p>}

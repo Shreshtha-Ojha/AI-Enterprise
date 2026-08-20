@@ -8,7 +8,7 @@ those are separate services the pipeline composes.
 
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from rag.services.extractors import get_extractor
 
@@ -19,6 +19,7 @@ class IngestedDocument:
     filename: str
     text: str
     char_count: int
+    metadata: dict = field(default_factory=dict)
 
 
 def clean_text(text: str) -> str:
@@ -39,10 +40,12 @@ class IngestionService:
     def ingest(self, file_bytes: bytes, filename: str) -> IngestedDocument:
         extractor = get_extractor(filename)
         raw_text = extractor.extract(file_bytes)
+        metadata = extractor.extract_metadata(file_bytes)
         cleaned = clean_text(raw_text)
         return IngestedDocument(
             document_id=str(uuid.uuid4()),
             filename=filename,
             text=cleaned,
             char_count=len(cleaned),
+            metadata=metadata,
         )

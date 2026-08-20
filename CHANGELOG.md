@@ -4,6 +4,88 @@ Each entry explains what changed, why, what problem it solved, what
 alternatives were considered, and what was learned — not a bare commit
 list. Dated by when the work was done.
 
+## 2026-08-20 — Add PDF ingestion support
+
+**What changed:** Extended the ingestion layer to support `.pdf` uploads
+alongside the existing `.txt` support, through the existing extractor
+abstraction/registry (`rag/services/extractors.py`) — no changes to
+chunking, embedding, vector storage, the pipeline orchestration, or the
+API contract's shape beyond one new nullable field. Added `PdfExtractor`
+(via `pypdf`), a new `ExtractionError` exception for files whose extension
+is supported but whose content isn't a parseable PDF, an
+`extract_metadata()` hook on `TextExtractor` (used to report PDF page
+count), and a nullable `Document.page_count` column. See
+[ADR-0007](./docs/decisions/0007-pdf-extraction.md) for the full reasoning.
+
+**Why:** [ADR-0006](./docs/decisions/0006-single-document-format.md) shipped
+`.txt`-only deliberately, to prove the pipeline before taking on
+format-specific extraction complexity, and named PDF support as the most
+natural next increment — real knowledge-base documents are overwhelmingly
+PDF or Word, not plain text. This closes that gap.
+
+**What problem it solved:**
+
+- **The extraction registry now has a second format, proving the
+  abstraction actually extends the way ADR-0006 claimed it would.** Adding
+  `PdfExtractor` required exactly one new subclass and one registry entry —
+  nothing in `chunking.py`, `embedding.py`, `vector_store.py`, or
+  `pipeline.py` changed.
+- **Scanned/image-only PDFs are handled honestly, not silently.** `pypdf`
+  reads a PDF's existing text layer only (no OCR). A scanned PDF extracts
+  to empty text, which flows into the same "no extractable text after
+  cleaning" path a whitespace-only `.txt` file already hit — recorded as
+  `status=failed` with an explanatory message, not a crash and not a false
+  success.
+- **Corrupt/empty PDF content fails cleanly.** A new `ExtractionError`
+  (distinct from `UnsupportedFileTypeError` — the extension is right, the
+  content isn't parseable) maps to a `400` in `DocumentUploadView`, the
+  same pattern already used for unsupported extensions.
+- **18 new tests** (49 → 67): `PdfExtractor` unit tests (valid extraction,
+  multi-page ordering, page-count metadata, blank/scanned PDF, empty bytes,
+  corrupt bytes), `IngestionService` PDF tests (metadata flows through,
+  extraction errors propagate), API-level tests (`201` with `page_count`,
+  multi-page count, `.txt` has `null` page_count, corrupt/empty PDF → `400`,
+  scanned PDF → `failed` not `500`, a full query round-trip against a
+  PDF-derived document), and one real-FastEmbed/real-FAISS integration test
+  proving a PDF-extracted chunk is retrieved semantically over an unrelated
+  one — the same standard of "actually verify retrieval," not just
+  "the plumbing runs," used for the existing `.txt` integration test. All
+  tests use a hand-built, dependency-free PDF fixture
+  (`rag/tests/pdf_fixtures.py`) — deterministic, no network, no external
+  tool.
+- **Frontend upload input now advertises both formats** (`accept=".txt,.pdf,..."`
+  plus a visible "Supported formats: .txt, .pdf" hint) rather than silently
+  accepting anything and letting the backend reject it after a round trip.
+
+**What was NOT changed, on purpose:**
+
+- **Chunking strategy.** Still fixed-500-char/50-overlap windows, applied
+  identically to text from either format — PDF extraction didn't surface a
+  concrete problem with it (extracted PDF text is just text once cleaned;
+  chunking has no format awareness and doesn't need any). See
+  [ADR-0007](./docs/decisions/0007-pdf-extraction.md) and
+  [ADR-0003](./docs/decisions/0003-fixed-size-chunking.md).
+- **No OCR.** Deliberately out of scope — a materially different capability
+  (image processing) than "parse the text already embedded in a PDF."
+- **No new infrastructure.** No LangChain, no Celery/Redis, no pgvector, no
+  new auth surface — `pypdf` is the only new dependency, and it's a
+  pure-Python PDF parser with no system binary requirement.
+
+**Alternatives considered:** `pdfplumber` and `unstructured` were
+considered and rejected as heavier than this project needs right now
+(layout/table extraction, effectively a document-processing framework) —
+see ADR-0007 for the full comparison, including why a single `(text,
+metadata)` return from `extract()` (avoiding a second PDF parse for
+metadata) was considered and deferred rather than adopted, since it isn't
+a real cost yet at the file sizes this MVP handles synchronously.
+
+**What was learned:** A hand-written, dependency-free PDF fixture builder
+(raw object table + xref, no `reportlab`/`fpdf`) was worth the extra ~60
+lines over pulling in a PDF-authoring library just for tests — it kept the
+test suite's dependency footprint unchanged and made the fixture's exact
+byte structure inspectable, which mattered once for debugging an
+off-by-one in the xref offsets before the fixture parsed correctly.
+
 ## 2026-08-20 — MVP polish pass: fix LLM error handling, add tests, fill in documentation
 
 **What changed:** Audited the existing Django/DRF + FastEmbed + FAISS + React

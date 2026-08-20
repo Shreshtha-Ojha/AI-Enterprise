@@ -22,6 +22,7 @@ from rest_framework.test import APIClient
 import rag.services.vector_store as vector_store_module
 from rag.models import Document
 from rag.services.llm import LLMOutputError, LLMResponse
+from rag.tests.pdf_fixtures import build_blank_pdf, build_minimal_pdf
 
 
 class RagApiTestCase(TestCase):
@@ -47,6 +48,10 @@ class RagApiTestCase(TestCase):
         upload = SimpleUploadedFile(filename, content.encode("utf-8"), content_type="text/plain")
         return self.client.post("/api/documents/upload", {"file": upload}, format="multipart")
 
+    def upload_pdf(self, pdf_bytes: bytes, filename: str = "notes.pdf"):
+        upload = SimpleUploadedFile(filename, pdf_bytes, content_type="application/pdf")
+        return self.client.post("/api/documents/upload", {"file": upload}, format="multipart")
+
 
 class DocumentUploadViewTests(RagApiTestCase):
     def test_upload_supported_file_returns_201_with_document_shape(self):
@@ -68,7 +73,7 @@ class DocumentUploadViewTests(RagApiTestCase):
         self.assertEqual(Document.objects.first().status, Document.Status.READY)
 
     def test_upload_unsupported_extension_returns_400(self):
-        upload = SimpleUploadedFile("report.pdf", b"%PDF-1.4", content_type="application/pdf")
+        upload = SimpleUploadedFile("report.docx", b"binary content", content_type="application/octet-stream")
         response = self.client.post("/api/documents/upload", {"file": upload}, format="multipart")
 
         self.assertEqual(response.status_code, 400)
@@ -81,6 +86,53 @@ class DocumentUploadViewTests(RagApiTestCase):
 
     def test_upload_whitespace_only_file_is_recorded_as_failed_not_500(self):
         response = self.upload_txt("   \n\n   ")
+
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertEqual(body["status"], "failed")
+        self.assertEqual(body["chunk_count"], 0)
+        self.assertTrue(body["error_message"])
+
+    def test_upload_valid_pdf_returns_201_with_page_count(self):
+        pdf_bytes = build_minimal_pdf(["The vector store uses FAISS for similarity search."])
+        response = self.upload_pdf(pdf_bytes)
+
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertEqual(body["filename"], "notes.pdf")
+        self.assertEqual(body["status"], "ready")
+        self.assertGreater(body["chunk_count"], 0)
+        self.assertEqual(body["page_count"], 1)
+
+    def test_upload_multi_page_pdf_reports_correct_page_count(self):
+        pdf_bytes = build_minimal_pdf(["Page one.", "Page two.", "Page three."])
+        response = self.upload_pdf(pdf_bytes)
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["page_count"], 3)
+
+    def test_upload_txt_has_null_page_count(self):
+        response = self.upload_txt("Some content.")
+        self.assertIsNone(response.json()["page_count"])
+
+    def test_upload_corrupt_pdf_returns_400(self):
+        response = self.upload_pdf(b"this is not a valid pdf")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("detail", response.json())
+
+    def test_upload_empty_pdf_returns_400(self):
+        # DRF's FileField rejects zero-byte uploads at the serializer level
+        # (before extraction runs), so the error shape is {"file": [...]}
+        # rather than the {"detail": ...} shape ExtractionError produces.
+        response = self.upload_pdf(b"")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("file", response.json())
+
+    def test_upload_scanned_pdf_with_no_text_is_recorded_as_failed_not_500(self):
+        pdf_bytes = build_blank_pdf(1)
+        response = self.upload_pdf(pdf_bytes)
 
         self.assertEqual(response.status_code, 201)
         body = response.json()
@@ -134,6 +186,26 @@ class QueryViewTests(RagApiTestCase):
         body = response.json()
         self.assertEqual(body["answer"], "FAISS is used for the vector index.")
         self.assertEqual(body["sources"], [{"document": "notes.txt", "chunk_id": chunk_id}])
+
+    @patch("rag.services.pipeline.get_llm_provider")
+    def test_successful_query_returns_grounded_answer_and_sources_from_pdf_document(self, mock_get_llm):
+        pdf_bytes = build_minimal_pdf(["FAISS is used for the vector index in this project."])
+        upload_response = self.upload_pdf(pdf_bytes, filename="notes.pdf")
+        chunk_id = f"{upload_response.json()['id']}:0"
+
+        mock_provider = mock_get_llm.return_value
+        mock_provider.generate_structured_answer.return_value = LLMResponse(
+            answer="FAISS is used for the vector index.",
+            sources=[{"document": "notes.pdf", "chunk_id": chunk_id}],
+            stop_reason="end_turn",
+        )
+
+        response = self.client.post("/api/query", {"question": "What is used for the vector index?"}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["answer"], "FAISS is used for the vector index.")
+        self.assertEqual(body["sources"], [{"document": "notes.pdf", "chunk_id": chunk_id}])
 
     @patch("rag.services.pipeline.get_llm_provider")
     def test_fabricated_source_chunk_id_is_dropped(self, mock_get_llm):

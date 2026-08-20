@@ -2,8 +2,9 @@
 
 from django.test import SimpleTestCase
 
-from rag.services.extractors import UnsupportedFileTypeError, get_extractor
+from rag.services.extractors import ExtractionError, UnsupportedFileTypeError, get_extractor
 from rag.services.ingestion import IngestionService, clean_text
+from rag.tests.pdf_fixtures import build_blank_pdf, build_minimal_pdf
 
 
 class ExtractorTests(SimpleTestCase):
@@ -11,13 +12,57 @@ class ExtractorTests(SimpleTestCase):
         extractor = get_extractor("notes.txt")
         self.assertEqual(extractor.extract("hello".encode("utf-8")), "hello")
 
+    def test_txt_extractor_has_no_metadata(self):
+        extractor = get_extractor("notes.txt")
+        self.assertEqual(extractor.extract_metadata(b"hello"), {})
+
     def test_unsupported_extension_raises(self):
         with self.assertRaises(UnsupportedFileTypeError):
-            get_extractor("report.pdf")
+            get_extractor("report.docx")
 
     def test_filename_with_no_extension_raises(self):
         with self.assertRaises(UnsupportedFileTypeError):
             get_extractor("README")
+
+
+class PdfExtractorTests(SimpleTestCase):
+    def test_extracts_text_from_a_valid_pdf(self):
+        extractor = get_extractor("report.pdf")
+        pdf_bytes = build_minimal_pdf(["Hello from a PDF document."])
+
+        text = extractor.extract(pdf_bytes)
+
+        self.assertIn("Hello from a PDF document.", text)
+
+    def test_extracts_text_from_each_page_in_order(self):
+        extractor = get_extractor("report.pdf")
+        pdf_bytes = build_minimal_pdf(["Page one content.", "Page two content."])
+
+        text = extractor.extract(pdf_bytes)
+
+        self.assertLess(text.index("Page one content."), text.index("Page two content."))
+
+    def test_metadata_reports_page_count(self):
+        extractor = get_extractor("report.pdf")
+        pdf_bytes = build_minimal_pdf(["one", "two", "three"])
+
+        self.assertEqual(extractor.extract_metadata(pdf_bytes), {"page_count": 3})
+
+    def test_blank_pdf_extracts_to_empty_text(self):
+        extractor = get_extractor("report.pdf")
+        pdf_bytes = build_blank_pdf(1)
+
+        self.assertEqual(extractor.extract(pdf_bytes).strip(), "")
+
+    def test_empty_bytes_raise_extraction_error(self):
+        extractor = get_extractor("report.pdf")
+        with self.assertRaises(ExtractionError):
+            extractor.extract(b"")
+
+    def test_non_pdf_bytes_raise_extraction_error(self):
+        extractor = get_extractor("report.pdf")
+        with self.assertRaises(ExtractionError):
+            extractor.extract(b"this is not a pdf file")
 
 
 class CleanTextTests(SimpleTestCase):
@@ -57,4 +102,25 @@ class IngestionServiceTests(SimpleTestCase):
     def test_ingest_raises_for_unsupported_format(self):
         service = IngestionService()
         with self.assertRaises(UnsupportedFileTypeError):
-            service.ingest(b"binary", "file.pdf")
+            service.ingest(b"binary", "file.docx")
+
+    def test_ingest_pdf_returns_cleaned_text_and_page_count_metadata(self):
+        service = IngestionService()
+        pdf_bytes = build_minimal_pdf(["Hello   World"])
+
+        result = service.ingest(pdf_bytes, "notes.pdf")
+
+        self.assertEqual(result.text, "Hello World")
+        self.assertEqual(result.filename, "notes.pdf")
+        self.assertEqual(result.metadata, {"page_count": 1})
+
+    def test_ingest_txt_has_empty_metadata(self):
+        service = IngestionService()
+        result = service.ingest(b"hello", "notes.txt")
+
+        self.assertEqual(result.metadata, {})
+
+    def test_ingest_raises_extraction_error_for_corrupt_pdf(self):
+        service = IngestionService()
+        with self.assertRaises(ExtractionError):
+            service.ingest(b"not a real pdf", "notes.pdf")

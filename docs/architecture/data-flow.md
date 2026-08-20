@@ -11,12 +11,18 @@ call exactly one pipeline function each and otherwise stay thin.
 ```
 1. IngestionService.ingest(file_bytes, filename)
    - get_extractor(filename) picks the TextExtractor for the file's
-     extension (raises UnsupportedFileTypeError if none registered — the
-     view maps this to 400)
-   - extractor.extract() decodes raw bytes to text
+     extension — TxtExtractor or PdfExtractor today (raises
+     UnsupportedFileTypeError if no extractor is registered for the
+     extension — the view maps this to 400)
+   - extractor.extract() decodes/parses raw bytes to text (raises
+     ExtractionError for a file whose extension is supported but whose
+     content isn't parseable — corrupt/empty PDF — also mapped to 400;
+     see ADR-0007)
+   - extractor.extract_metadata() returns extractor-specific metadata
+     (empty for .txt; {"page_count": N} for .pdf)
    - clean_text() collapses whitespace noise, strips control chars
    - assigns a UUID document_id
-   → IngestedDocument(document_id, filename, text, char_count)
+   → IngestedDocument(document_id, filename, text, char_count, metadata)
 
 2. ChunkingService.chunk(document_id, filename, text)
    → list[Chunk], fixed-size windows with overlap (see ADR-0003)
@@ -35,7 +41,8 @@ call exactly one pipeline function each and otherwise stay thin.
    - writes chunk text + metadata to the JSON sidecar under the same IDs
    - persists both to disk immediately (no separate "flush" step)
 
-5. Document.objects.create(...) — status=READY, chunk_count, char_count
+5. Document.objects.create(...) — status=READY, chunk_count, char_count,
+   page_count (from step 1's metadata; null for .txt)
 ```
 
 The view returns the serialized `Document` row (`201`) regardless of
@@ -92,6 +99,7 @@ strategy.
 | Failure | Where | HTTP status |
 |---|---|---|
 | Unsupported file extension | `IngestionService.ingest` → `UnsupportedFileTypeError` | 400 |
+| Corrupt/empty PDF (or any file whose extension is supported but content isn't parseable) | `PdfExtractor.extract` → `ExtractionError` | 400 |
 | Missing `file` / blank `question` | Serializer validation | 400 |
 | No extractable text after cleaning | Pipeline returns a `FAILED` `Document`, not an exception | 201 (document status = `failed`) |
 | Model refusal, malformed output, or any Anthropic API failure | `LLMOutputError` | 502 |

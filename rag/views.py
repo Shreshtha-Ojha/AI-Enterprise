@@ -10,7 +10,7 @@ from rag.serializers import (
     QueryRequestSerializer,
     QueryResponseSerializer,
 )
-from rag.services.extractors import UnsupportedFileTypeError
+from rag.services.extractors import ExtractionError, UnsupportedFileTypeError
 from rag.services.llm import LLMOutputError
 from rag.services.pipeline import run_ingestion_pipeline, run_query_pipeline
 
@@ -26,6 +26,8 @@ class DocumentUploadView(APIView):
         try:
             document = run_ingestion_pipeline(uploaded_file.read(), uploaded_file.name)
         except UnsupportedFileTypeError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except ExtractionError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(DocumentSerializer(document).data, status=status.HTTP_201_CREATED)

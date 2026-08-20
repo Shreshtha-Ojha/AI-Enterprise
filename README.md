@@ -52,12 +52,12 @@ each technology was chosen.
   answers without retrieved context first), structured JSON output enforced
   by the Anthropic API's schema mode, and independent server-side
   verification that every cited source was actually retrieved
-- Clean failure handling throughout: unsupported file types, empty
-  documents, and LLM/provider failures all return clear, typed responses —
-  never a raw stack trace
-- 49 automated tests covering chunking, extraction, embedding + FAISS
-  retrieval (with the real model), grounding validation, and the full API
-  surface
+- Clean failure handling throughout: unsupported file types, corrupt/empty
+  PDFs, empty documents, and LLM/provider failures all return clear, typed
+  responses — never a raw stack trace
+- 67 automated tests covering chunking, extraction (`.txt` and `.pdf`),
+  embedding + FAISS retrieval (with the real model), grounding validation,
+  and the full API surface
 
 ## Technology Stack
 
@@ -65,6 +65,7 @@ each technology was chosen.
 |---|---|
 | Backend | Django 6, Django REST Framework |
 | Database | PostgreSQL |
+| Document parsing | Built-in decoding (`.txt`), `pypdf` (`.pdf`) |
 | Embeddings | FastEmbed (`BAAI/bge-small-en-v1.5`, local, no API key) |
 | Vector index | FAISS (`faiss-cpu`), local, file-persisted |
 | LLM | Anthropic Claude, behind a swappable `LLMProvider` interface |
@@ -134,13 +135,17 @@ npm run dev
 
 ## Document Ingestion Flow
 
-Upload → text extraction (`.txt` only today, see
-[ADR-0006](./docs/decisions/0006-single-document-format.md)) → whitespace
-cleaning → fixed-size chunking with overlap → FastEmbed embedding of every
-chunk → FAISS indexing → a `Document` row recording filename, char/chunk
-counts, and status. An empty or unextractable document is recorded as
-`status=failed` with an explanatory error message — not a server error. Full
-detail: [docs/architecture/data-flow.md](./docs/architecture/data-flow.md).
+Upload → text extraction (`.txt` and `.pdf` today, see
+[ADR-0006](./docs/decisions/0006-single-document-format.md) and
+[ADR-0007](./docs/decisions/0007-pdf-extraction.md)) → whitespace cleaning →
+fixed-size chunking with overlap → FastEmbed embedding of every chunk →
+FAISS indexing → a `Document` row recording filename, char/chunk/page
+counts, and status. An empty or unextractable document (including a
+scanned/image-only PDF with no text layer) is recorded as `status=failed`
+with an explanatory error message — not a server error. A file with an
+unsupported extension, or a corrupt/empty PDF, is rejected with a clean
+`400` before any of that happens. Full detail:
+[docs/architecture/data-flow.md](./docs/architecture/data-flow.md).
 
 ## Query Flow
 
@@ -156,9 +161,15 @@ returning the answer to the frontend. Full detail:
 
 ## Current Limitations
 
-- **Only `.txt` files are supported.** The extraction layer is built to
-  extend (one class + a registry entry per format), but PDF/DOCX aren't
-  implemented.
+- **`.txt` and `.pdf` are supported; other formats (DOCX, HTML, etc.) are
+  not.** The extraction layer is built to extend (one class + a registry
+  entry per format) — see [ADR-0006](./docs/decisions/0006-single-document-format.md)
+  and [ADR-0007](./docs/decisions/0007-pdf-extraction.md).
+- **PDF support extracts an existing text layer only — no OCR.**
+  Scanned/image-only PDFs have no embedded text, so they ingest as "no
+  extractable text" (`status=failed`), the same outcome a blank `.txt`
+  upload gets. This is a real, honest limitation, not an edge case to
+  gloss over — most "PDF" isn't guaranteed to be text-based.
 - **No live-LLM verification in this environment.** During this project's
   most recent pass, the configured Anthropic API key had no usable credits.
   Retrieval (embedding + FAISS search) is verified working end-to-end with

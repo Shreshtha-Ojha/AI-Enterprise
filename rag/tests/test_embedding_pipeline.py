@@ -14,9 +14,11 @@ from pathlib import Path
 
 from django.test import SimpleTestCase
 
-from rag.services.chunking import Chunk
+from rag.services.chunking import Chunk, ChunkingService
 from rag.services.embedding import get_embedding_service
+from rag.services.ingestion import IngestionService
 from rag.services.vector_store import FaissVectorStore
+from rag.tests.pdf_fixtures import build_minimal_pdf
 
 
 class EmbeddingPipelineTests(SimpleTestCase):
@@ -51,4 +53,38 @@ class EmbeddingPipelineTests(SimpleTestCase):
         results = store.search(query_vector, top_k=2)
 
         self.assertEqual(results[0].chunk_id, "doc-1:0")
+        self.assertGreater(results[0].score, results[1].score)
+
+    def test_pdf_extracted_text_is_chunked_embedded_and_retrieved(self):
+        """Full path: PDF bytes -> extraction -> cleaning -> chunking ->
+        real embeddings -> FAISS -> semantic retrieval.
+
+        Two separate single-page PDFs (rather than two pages of one PDF) so
+        each yields exactly one chunk with default settings — chunking is
+        page-boundary-agnostic by design (see docs/decisions), so pages of
+        the same PDF short enough to fit in one 500-char chunk would merge.
+        """
+        relevant_pdf = build_minimal_pdf(["The FAISS index stores vector embeddings for search."])
+        unrelated_pdf = build_minimal_pdf(["The office kitchen coffee machine is broken again."])
+
+        ingestion = IngestionService()
+        chunking = ChunkingService(chunk_size=500, chunk_overlap=0)
+
+        chunks = []
+        for pdf_bytes, filename in [(relevant_pdf, "relevant.pdf"), (unrelated_pdf, "unrelated.pdf")]:
+            ingested = ingestion.ingest(pdf_bytes, filename)
+            chunks += chunking.chunk(ingested.document_id, ingested.filename, ingested.text)
+
+        self.assertEqual(len(chunks), 2)
+
+        embeddings = self.embedding.embed_documents(chunks)
+
+        store = FaissVectorStore(dimension=self.embedding.dimension, store_dir=Path(self._tmp.name))
+        store.add(chunks, embeddings)
+
+        query_vector = self.embedding.embed_query("How does the system search for similar vectors?")
+        results = store.search(query_vector, top_k=2)
+
+        self.assertEqual(results[0].filename, "relevant.pdf")
+        self.assertIn("FAISS index", results[0].text)
         self.assertGreater(results[0].score, results[1].score)

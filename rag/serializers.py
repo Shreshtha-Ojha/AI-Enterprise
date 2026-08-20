@@ -12,6 +12,7 @@ class DocumentSerializer(serializers.ModelSerializer):
             "uploaded_at",
             "char_count",
             "chunk_count",
+            "page_count",
             "status",
             "error_message",
         ]

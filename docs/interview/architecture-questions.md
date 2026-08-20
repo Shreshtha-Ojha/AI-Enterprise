@@ -50,6 +50,28 @@ current code does not protect against (there's no file lock, no
 distributed lock). This is a genuine known gap, not something the current
 implementation handles gracefully.
 
+**Q: How did adding PDF support fit into the existing architecture?**
+Without changing it — that was the point of the extractor abstraction.
+`get_extractor(filename)` already dispatched on file extension via a
+registry (`EXTRACTORS: dict[str, TextExtractor]`); adding PDF meant writing
+`PdfExtractor(TextExtractor)` (backed by `pypdf`) and adding one line to
+that dict. `chunking.py`, `embedding.py`, `vector_store.py`, `pipeline.py`,
+and the API contract didn't change at all. The one real addition was a new
+`ExtractionError` exception, parallel to the existing
+`UnsupportedFileTypeError` — the extension being right (`.pdf`, extractor
+found) is a different failure mode than the file's content not actually
+being a parseable PDF, and the view maps both to a clean `400` the same
+way. See [ADR-0007](../decisions/0007-pdf-extraction.md).
+
+**Q: What happens with a scanned (image-only) PDF?**
+`pypdf` reads a PDF's existing text layer only — no OCR. A scanned PDF has
+no text layer, so extraction legitimately returns an empty string, which
+flows into the exact same path a whitespace-only `.txt` upload already
+hit: zero chunks, `Document` recorded with `status=failed` and an
+explanatory message, HTTP `201` (the request succeeded; the content just
+had nothing extractable). No special-casing was needed because that path
+already existed — PDF just reaches it through a different route.
+
 **Q: Why no authentication?**
 Out of scope for this phase by explicit choice — the goal was a coherent,
 demonstrable RAG pipeline, not a multi-tenant product. Adding it later means

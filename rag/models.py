@@ -22,6 +22,7 @@ class Document(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
     char_count = models.PositiveIntegerField(default=0)
     chunk_count = models.PositiveIntegerField(default=0)
+    page_count = models.PositiveIntegerField(null=True, blank=True, default=None)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.READY)
     error_message = models.TextField(blank=True, default="")
 

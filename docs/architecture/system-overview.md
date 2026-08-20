@@ -11,7 +11,7 @@ from — that document.
 | Frontend | React + Vite | Upload UI, document list, question box, answer + sources display |
 | API | Django + Django REST Framework | HTTP boundary: validation, status codes, orchestration entry points |
 | Structured data store | PostgreSQL | `Document` bookkeeping rows (filename, status, chunk/char counts) |
-| Text extraction | `rag/services/extractors.py` | File bytes → raw text, one extractor per supported format |
+| Text extraction | `rag/services/extractors.py` | File bytes → raw text, one extractor per supported format (`.txt`, `.pdf`) |
 | Chunking | `rag/services/chunking.py` | Raw text → fixed-size overlapping chunks |
 | Embeddings | FastEmbed (`rag/services/embedding.py`) | Chunk text / query text → 384-dim vectors, same model for both |
 | Vector index | FAISS (`rag/services/vector_store.py`) | Nearest-neighbor search over chunk embeddings, persisted to disk |

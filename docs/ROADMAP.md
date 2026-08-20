@@ -7,9 +7,15 @@ current choices were made and what each one gives up.
 
 ## Would directly improve answer quality, no new infrastructure
 
-- **More document formats.** PDF and DOCX extractors behind the existing
-  `TextExtractor` interface (`rag/services/extractors.py`) — see
-  [ADR-0006](./decisions/0006-single-document-format.md).
+- **More document formats.** `.txt` and `.pdf` are supported today (see
+  [ADR-0006](./decisions/0006-single-document-format.md) and
+  [ADR-0007](./decisions/0007-pdf-extraction.md)). DOCX is the next natural
+  extractor behind the same `TextExtractor` interface
+  (`rag/services/extractors.py`).
+- **OCR for scanned/image-only PDFs.** `PdfExtractor` reads a PDF's
+  existing text layer only — a scanned PDF has none, so it ingests as
+  "no extractable text" (see ADR-0007). Real OCR is a materially different,
+  heavier capability, deliberately deferred.
 - **Semantic chunking**, replacing fixed-size windows — see
   [ADR-0003](./decisions/0003-fixed-size-chunking.md) for the approach.
 - **Per-document delete**, including removing its vectors from the FAISS
