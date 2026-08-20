@@ -117,6 +117,43 @@ npm run build
 npm run lint
 ```
 
+## Continuous Integration
+
+GitHub Actions runs on every push and pull request
+(`.github/workflows/ci.yml`), as two independent jobs:
+
+| Job | What it checks |
+|---|---|
+| `backend-tests` | `manage.py check` (Django system checks), `manage.py makemigrations --check --dry-run` (no missing migrations), and the full `manage.py test rag` suite (68 tests) against a disposable PostgreSQL 16 service container |
+| `frontend-checks` | `npm ci`, `npm run lint` (oxlint), `npm run build` (Vite production build) |
+
+This is CI, not CD — no deployment pipeline exists yet, so nothing is
+published or deployed from these workflows.
+
+**Live Claude generation is intentionally not required for CI.** The one
+seam that touches the Anthropic API, `get_llm_provider()`, is mocked in
+every test that exercises the query path (`rag/tests/test_api.py`), exactly
+as it is when running the suite locally without a `.env` — so CI sets no
+`ANTHROPIC_API_KEY` at all, real or fake. See
+[ADR-0008](./docs/decisions/0008-ci-without-llm-credentials.md) for why.
+Database credentials used by CI are throwaway, CI-only values defined
+directly in the workflow file, not secrets.
+
+To reproduce what CI checks, locally:
+
+```bash
+# Backend (with DB_* pointed at a local/dockerized Postgres, as above)
+poetry run python manage.py check
+poetry run python manage.py makemigrations --check --dry-run
+poetry run python manage.py test rag
+
+# Frontend
+cd frontend
+npm ci
+npm run lint
+npm run build
+```
+
 ### Environment Variables
 
 **Backend (`.env`, see `.env.example`):**

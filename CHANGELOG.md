@@ -4,6 +4,44 @@ Each entry explains what changed, why, what problem it solved, what
 alternatives were considered, and what was learned — not a bare commit
 list. Dated by when the work was done.
 
+## 2026-08-20 — GitHub Actions CI
+
+**What changed:** Added `.github/workflows/ci.yml`, running on every push
+and pull request as two independent jobs:
+
+- **`backend-tests`** — Poetry install (from `poetry.lock`), a disposable
+  PostgreSQL 16 service container with CI-only credentials, `manage.py
+  check`, `manage.py makemigrations --check --dry-run`, and the full
+  `manage.py test rag` suite (68 tests).
+- **`frontend-checks`** — `npm ci`, `npm run lint` (oxlint), `npm run
+  build` (Vite).
+
+No deployment step was added — this is CI, not CD, and the README/CHANGELOG
+do not claim otherwise.
+
+**No Anthropic credentials in CI.** `get_llm_provider()` (the seam from
+[ADR-0005](./docs/decisions/0005-llm-provider-abstraction.md)) is mocked in
+every test that touches the query path, so `ANTHROPIC_API_KEY` is left
+unset entirely in CI — not a real key, not a placeholder. See the new
+[ADR-0008](./docs/decisions/0008-ci-without-llm-credentials.md) for the
+full reasoning, including why a fake placeholder key was considered and
+rejected as noise.
+
+**Verification performed before this entry was written:** ran the exact
+commands the workflow runs, locally — `manage.py check`,
+`makemigrations --check --dry-run`, and `manage.py test rag` (68/68 pass,
+~23s, against a real local PostgreSQL 16 and the real FastEmbed model — no
+mocking of retrieval), plus `npm ci`, `npm run lint` (exits 0; the one
+existing `set-state-in-effect` warning in `App.jsx` is unchanged, per this
+task's explicit instruction not to touch it), and `npm run build`. The
+workflow YAML was parsed and validated for syntax. GitHub Actions itself
+was **not** executed — this environment has no access to actually run a
+workflow on GitHub, so nothing here claims a real Actions run passed.
+
+**README updated** with a "Continuous Integration" section documenting what
+each job checks, that live Claude generation is intentionally not
+required, and the exact commands to reproduce CI locally.
+
 ## 2026-08-20 — Final audit and MVP freeze
 
 **What changed:** A full-repository audit pass (code, security, API
