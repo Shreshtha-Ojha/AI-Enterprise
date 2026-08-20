@@ -6,6 +6,7 @@ subclass, not touching the pipeline or the views.
 """
 
 import json
+import logging
 import os
 import threading
 from abc import ABC, abstractmethod
@@ -13,6 +14,8 @@ from dataclasses import dataclass
 
 import anthropic
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 ANSWER_JSON_SCHEMA = {
     "type": "object",
@@ -67,16 +70,27 @@ class AnthropicLLMProvider(LLMProvider):
         self._model = model or settings.RAG_LLM_MODEL
 
     def generate_structured_answer(self, system_prompt: str, user_prompt: str) -> LLMResponse:
-        response = self._client.messages.create(
-            model=self._model,
-            max_tokens=4096,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
-            output_config={
-                "effort": "low",
-                "format": {"type": "json_schema", "schema": ANSWER_JSON_SCHEMA},
-            },
-        )
+        try:
+            response = self._client.messages.create(
+                model=self._model,
+                max_tokens=4096,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+                output_config={
+                    "effort": "low",
+                    "format": {"type": "json_schema", "schema": ANSWER_JSON_SCHEMA},
+                },
+            )
+        except anthropic.APIError as exc:
+            # Covers everything the SDK can raise for a failed call: auth
+            # failures, exhausted credits, rate limits, timeouts, connection
+            # errors. The full detail is logged server-side for debugging;
+            # callers only see a generic, safe message — never the raw SDK
+            # exception (which can include request/account-specific detail).
+            logger.error("Anthropic API request failed: %s", exc, exc_info=True)
+            raise LLMOutputError(
+                "The LLM provider is currently unavailable. Please try again later."
+            ) from exc
 
         if response.stop_reason == "refusal":
             raise LLMOutputError("The model declined to answer this question.")

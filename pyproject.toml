@@ -1,7 +1,7 @@
 [project]
 name = "enterprise-ai-platform"
 version = "0.1.0"
-description = "Enterprise AI Knowledge & Workflow Platform (Django + DRF + PostgreSQL, RAG layer planned)"
+description = "Enterprise Knowledge Assistant — Django + DRF + PostgreSQL backend with a FastEmbed/FAISS RAG pipeline and a React frontend"
 authors = [
     {name = "Shreshtha Ojha",email = "ojhashreshtha@gmail.com"}
 ]
